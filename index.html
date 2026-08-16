@@ -1551,8 +1551,8 @@ function runBootSequence(){
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
-    getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult,
-    onAuthStateChanged, signOut
+    getAuth, GoogleAuthProvider, signInWithPopup,
+onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
   const firebaseConfig = {
@@ -1568,43 +1568,41 @@ function runBootSequence(){
   const fbApp = initializeApp(firebaseConfig);
   const auth = getAuth(fbApp);
   const provider = new GoogleAuthProvider();
-  let authHandled = false; // avoid double-handling the very first auto-restore callback
+ // avoid double-handling the very first auto-restore callback
 
-  window.signInWithGoogle = function(){
-    const err = document.getElementById('loginErrGoogle');
-    if(err) err.textContent = '';
-    // Redirect flow instead of popup — mobile browsers routinely block popups,
-    // so this navigates to Google, then back to this page once signed in.
-    signInWithRedirect(auth, provider).catch((error) => {
-      console.error('Google sign-in failed to start:', error);
-      if(err) err.textContent = 'Could not start sign-in — ' + (error.code || error.message);
-    });
-  };
+  window.signInWithGoogle = async function(){
+  const err = document.getElementById('loginErrGoogle');
+  if(err) err.textContent = '';
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+
+    const user = result.user;
+    const name =
+      user.displayName ||
+      (user.email ? user.email.split('@')[0] : 'Player');
+
+    window.loginWithEmail(name, user.email);
+
+  } catch (error) {
+    console.error('Google sign-in failed:', error);
+
+    if(err) {
+      err.textContent =
+        'Sign-in failed — ' + (error.code || error.message);
+    }
+  }
+};
 
   window.firebaseSignOut = function(){
     signOut(auth).catch(()=>{});
   };
 
-  // Handle the user coming back from Google's redirect sign-in page
-  getRedirectResult(auth)
-    .then((result) => {
-      if(result && result.user){
-        authHandled = true;
-        const user = result.user;
-        const name = user.displayName || (user.email ? user.email.split('@')[0] : 'Player');
-        window.loginWithEmail(name, user.email);
-      }
-    })
-    .catch((error) => {
-      console.error('Google redirect sign-in failed:', error);
-      const err = document.getElementById('loginErrGoogle');
-      if(err) err.textContent = 'Sign-in failed — ' + (error.code || error.message);
-    });
+
 
   // Auto-restore a returning signed-in user (Firebase persists this itself)
   onAuthStateChanged(auth, (user) => {
-    if(authHandled) return;
-    authHandled = true;
+    
     if(user){
       const name = user.displayName || (user.email ? user.email.split('@')[0] : 'Player');
       window.loginWithEmail(name, user.email);
